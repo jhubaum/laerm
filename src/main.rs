@@ -5,10 +5,17 @@ use std::{time, thread};
 use device_query::{DeviceQuery, DeviceState, Keycode};
 
 mod synthesis;
-use synthesis::Oscillator;
+use synthesis::{Oscillator, WaveGenerator};
 
-fn output_sound_value(time: f32) -> f32 {
-    0.5 * Oscillator::Square{freq: 110.0}.evaluate(time)
+mod shared;
+use shared::InputEvent;
+
+#[derive(Default)]
+struct Wave;
+impl WaveGenerator for Wave {
+    fn evaluate(&self, time: f32, freq: f32) -> f32 {
+        0.2 * Oscillator::Square { freq }.evaluate(time)
+    }
 }
 
 struct KeyboardState {
@@ -81,19 +88,20 @@ where
     let (tx, rx) = mpsc::channel();
 
     // Produce a sinusoid of maximum amplitude.
-    let mut sample_clock = 0f32;
-    let mut muted = false;
+    let mut time = 0f32;
+    let mut instrument = synthesis::Instrument::<synthesis::DummyEnvelope,
+                                               Wave>::default();
     let mut next_value = move || {
-        sample_clock = (sample_clock + 1.0) % sample_rate;
-        if let Ok(muted_val) = rx.try_recv() {
-            muted = muted_val
+        time += 1.0 / sample_rate;
+        if let Ok(evt) = rx.try_recv() {
+            match evt {
+                InputEvent::StartNote => instrument.start_note(0),
+                InputEvent::EndNote => instrument.end_note(0)
+            }
         }
 
-        if muted {
-            0.0
-        } else {
-            output_sound_value(sample_clock / sample_rate)
-        }
+        instrument.remove_finished(instrument.finished_notes());
+        instrument.evaluate(time)
     };
 
     let stream = device
@@ -110,13 +118,14 @@ where
 
     let mut keyboard = KeyboardState::new();
 
-    let mut muted_in = muted;
-
     loop {
         keyboard.update();
         if keyboard.new_pressed_keys.contains(&Keycode::Space) {
-            muted_in = !muted_in;
-            tx.send(muted_in).unwrap();
+            tx.send(InputEvent::StartNote).unwrap();
+        }
+
+        if keyboard.released_keys.contains(&Keycode::Space) {
+           tx.send(InputEvent::EndNote).unwrap();
         }
 
         if keyboard.pressed_keys.contains(&Keycode::Q) {
