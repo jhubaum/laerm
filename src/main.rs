@@ -4,8 +4,11 @@ use std::{time, thread};
 
 use device_query::{DeviceQuery, DeviceState, Keycode};
 
+mod synthesis;
+use synthesis::Oscillator;
+
 fn output_sound_value(time: f32) -> f32 {
-    0.2 * (time * 110.0 * 2.0 * std::f32::consts::PI).sin()
+    0.5 * Oscillator::Square{freq: 110.0}.evaluate(time)
 }
 
 struct KeyboardState {
