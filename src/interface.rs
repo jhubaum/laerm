@@ -1,20 +1,11 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::mpsc;
 
-use super::synthesis;
+use super::synthesis::Instrument;
 
 pub enum InputEvent {
     StartNote,
     EndNote,
-}
-
-// only declared temporarily – will be removed after implementing a proper instrument struct
-#[derive(Default)]
-struct Wave;
-impl synthesis::WaveGenerator for Wave {
-    fn evaluate(&self, time: f32, freq: f32) -> f32 {
-        0.2 * synthesis::Oscillator::Square { freq }.evaluate(time)
-    }
 }
 
 pub struct SoundDeviceInterface {
@@ -28,7 +19,7 @@ impl SoundDeviceInterface {
         self.sender.send(evt).unwrap()
     }
 
-    pub fn create_default() -> Self {
+    pub fn create_default<TInstr: Instrument + Default + Send + 'static>() -> Self {
         let host = cpal::default_host();
         let device = host
             .default_output_device()
@@ -44,13 +35,13 @@ impl SoundDeviceInterface {
             .with_max_sample_rate();
 
         match config.sample_format() {
-            cpal::SampleFormat::F32 => Self::create::<f32>(&device, &config.into()),
-            cpal::SampleFormat::I16 => Self::create::<i16>(&device, &config.into()),
-            cpal::SampleFormat::U16 => Self::create::<u16>(&device, &config.into()),
+            cpal::SampleFormat::F32 => Self::create::<f32, TInstr>(&device, &config.into()),
+            cpal::SampleFormat::I16 => Self::create::<i16, TInstr>(&device, &config.into()),
+            cpal::SampleFormat::U16 => Self::create::<u16, TInstr>(&device, &config.into()),
         }
     }
 
-    pub fn create<TSample: cpal::Sample>(
+    pub fn create<TSample: cpal::Sample, TInstr: Instrument + Default + Send + 'static>(
         device: &cpal::Device,
         config: &cpal::StreamConfig,
     ) -> Self {
@@ -61,7 +52,7 @@ impl SoundDeviceInterface {
 
         // Produce a sinusoid of maximum amplitude.
         let mut time = 0f32;
-        let mut instrument = synthesis::Instrument::<synthesis::DummyEnvelope, Wave>::default();
+        let mut instrument = TInstr::default();
         let mut next_value = move || {
             time += 1.0 / sample_rate;
             if let Ok(evt) = rx.try_recv() {
