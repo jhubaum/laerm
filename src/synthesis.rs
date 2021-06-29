@@ -55,8 +55,10 @@ pub struct InstrumentImpl<T: Envelope, TOsc: WaveGenerator> {
     notes: HashMap<i8, T>,
 }
 
-fn note_to_frequency(note: &i8) -> f32 {
-    110.0
+fn note_to_frequency(note: i8) -> f32 {
+    // start from a C3
+    let base = 130.81;
+    base * 2.0_f32.powf(1.0 / 12.0).powi(note.into())
 }
 
 impl<T: Envelope, TOsc: WaveGenerator> InstrumentImpl<T, TOsc> {
@@ -76,7 +78,7 @@ impl<T: Envelope, TOsc: WaveGenerator> Instrument for InstrumentImpl<T, TOsc> {
             res += envelope.amplitude(time)
                 * self
                     .wave_generator
-                    .generate_wave(time, note_to_frequency(note));
+                    .generate_wave(time, note_to_frequency(*note));
         }
         res
     }

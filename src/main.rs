@@ -58,21 +58,49 @@ impl Default for DefaultInstrument {
     }
 }
 
+fn keycode_to_note(keycode: &Keycode) -> Option<i8> {
+    match keycode {
+        Keycode::Z => Some(0),
+        Keycode::S => Some(1),
+        Keycode::X => Some(2),
+        Keycode::D => Some(3),
+        Keycode::C => Some(4),
+        Keycode::V => Some(5),
+        Keycode::G => Some(6),
+        Keycode::B => Some(7),
+        Keycode::H => Some(8),
+        Keycode::N => Some(9),
+        Keycode::J => Some(10),
+        Keycode::M => Some(11),
+        Keycode::Comma => Some(12),
+        _ => None,
+    }
+}
+
 fn main() {
     let mut keyboard = KeyboardInput::new();
     let interface = SoundDeviceInterface::create_default::<DefaultInstrument>();
+
+    println!("Press Q to quit");
+    println!("| |   |   | | |   |   |   | | |   |");
+    println!("| | s | d | | | g | h | j | | |   |");
+    println!("| +---+---+ | +---+---+---+ | +---+");
+    println!("|   |   |   |   |   |   |   |   |");
+    println!("| z | x | c | v | b | n | m | , |");
+    println!("+---+---+---+---+---+---+---+---+");
 
     loop {
         for evt in keyboard.query_events().iter() {
             match evt {
                 KeyboardEvent::KeyPressed(Keycode::Q) => return,
-                KeyboardEvent::KeyPressed(Keycode::Space) => {
-                    interface.send(InputEvent::StartNote);
-                }
-                KeyboardEvent::KeyReleased(Keycode::Space) => {
-                    interface.send(InputEvent::EndNote);
-                }
-                _ => {}
+                KeyboardEvent::KeyPressed(keycode) => match keycode_to_note(keycode) {
+                    Some(note) => interface.send(InputEvent::StartNote(note)),
+                    None => continue,
+                },
+                KeyboardEvent::KeyReleased(keycode) => match keycode_to_note(keycode) {
+                    Some(note) => interface.send(InputEvent::EndNote(note)),
+                    None => continue,
+                },
             }
         }
         thread::sleep(time::Duration::from_millis(50))

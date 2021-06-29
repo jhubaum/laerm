@@ -4,8 +4,8 @@ use std::sync::mpsc;
 use super::synthesis::Instrument;
 
 pub enum InputEvent {
-    StartNote,
-    EndNote,
+    StartNote(i8),
+    EndNote(i8),
 }
 
 pub struct SoundDeviceInterface {
@@ -51,19 +51,20 @@ impl SoundDeviceInterface {
         let (tx, rx) = mpsc::channel();
 
         // Produce a sinusoid of maximum amplitude.
+        let mut sample_clock = 0f32;
         let mut time = 0f32;
         let mut instrument = TInstr::default();
         let mut next_value = move || {
-            time += 1.0 / sample_rate;
+            sample_clock = (sample_clock + 1.0) % sample_rate;
             if let Ok(evt) = rx.try_recv() {
                 match evt {
-                    InputEvent::StartNote => instrument.start_note(0),
-                    InputEvent::EndNote => instrument.end_note(0),
+                    InputEvent::StartNote(i) => instrument.start_note(i),
+                    InputEvent::EndNote(i) => instrument.end_note(i),
                 }
             }
 
             instrument.remove_finished(instrument.finished_notes());
-            instrument.evaluate(time)
+            instrument.evaluate(sample_clock / sample_rate)
         };
 
         let stream = device
