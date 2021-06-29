@@ -2,7 +2,8 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::mpsc;
 use std::{time, thread};
 
-use device_query::{DeviceQuery, DeviceState, Keycode};
+mod system;
+use system::{Keycode, KeyboardInput, KeyboardEvent};
 
 mod synthesis;
 use synthesis::{Oscillator, WaveGenerator};
@@ -15,44 +16,6 @@ struct Wave;
 impl WaveGenerator for Wave {
     fn evaluate(&self, time: f32, freq: f32) -> f32 {
         0.2 * Oscillator::Square { freq }.evaluate(time)
-    }
-}
-
-struct KeyboardState {
-    device_state: DeviceState,
-    new_pressed_keys: Vec<Keycode>,
-    pressed_keys: Vec<Keycode>,
-    released_keys: Vec<Keycode>
-}
-
-impl KeyboardState {
-    fn new() -> Self {
-        Self {
-            device_state: DeviceState::new(),
-            new_pressed_keys: Vec::new(),
-            pressed_keys: Vec::new(),
-            released_keys: Vec::new()
-        }
-    }
-
-    fn update(&mut self) {
-        let cur_keys = self.device_state.get_keys();
-
-        self.released_keys.clear();
-        self.new_pressed_keys.clear();
-
-        for key in cur_keys.iter() {
-            if !self.pressed_keys.contains(key) {
-                self.new_pressed_keys.push(key.clone());
-            }
-        }
-
-        for key in self.pressed_keys.iter() {
-            if !cur_keys.contains(key) {
-                self.released_keys.push(key.clone());
-            }
-        }
-        self.pressed_keys = cur_keys;
     }
 }
 
@@ -116,22 +79,21 @@ where
 
     stream.play().expect("Unable to play stream");
 
-    let mut keyboard = KeyboardState::new();
+    let mut keyboard = KeyboardInput::new();
 
     loop {
-        keyboard.update();
-        if keyboard.new_pressed_keys.contains(&Keycode::Space) {
-            tx.send(InputEvent::StartNote).unwrap();
+        for evt in keyboard.query_events().iter() {
+            match evt {
+                KeyboardEvent::KeyPressed(Keycode::Q) => return,
+                KeyboardEvent::KeyPressed(Keycode::Space) => {
+                    tx.send(InputEvent::StartNote).unwrap();
+                },
+                KeyboardEvent::KeyReleased(Keycode::Space) => {
+                    tx.send(InputEvent::EndNote).unwrap();
+                },
+                _ => {  }
+            }
         }
-
-        if keyboard.released_keys.contains(&Keycode::Space) {
-           tx.send(InputEvent::EndNote).unwrap();
-        }
-
-        if keyboard.pressed_keys.contains(&Keycode::Q) {
-            break;
-        }
-
         thread::sleep(time::Duration::from_millis(50))
     }
 }
