@@ -1,5 +1,6 @@
 use rand::Rng;
 use std::collections::HashMap;
+use std::time::Instant;
 
 // Convert frequency (Hz) to angular velocity
 fn w(freq: f32) -> f32 {
@@ -29,12 +30,12 @@ impl Oscillator {
 }
 
 pub trait Envelope {
-    fn amplitude(&self, time: f32) -> f32;
-    fn activate(&mut self);
-    fn deactivate(&mut self);
+    fn amplitude(&mut self, time: &Instant) -> f32;
+    fn activate(&mut self, time: &Instant);
+    fn deactivate(&mut self, time: &Instant);
 
     fn is_active(&self) -> bool;
-    fn create_activated_copy(&self) -> Self;
+    fn create_activated_copy(&self, time: &Instant) -> Self;
 }
 
 pub trait WaveGenerator {
@@ -74,8 +75,8 @@ impl<T: Envelope, TOsc: WaveGenerator> InstrumentImpl<T, TOsc> {
 impl<T: Envelope, TOsc: WaveGenerator> Instrument for InstrumentImpl<T, TOsc> {
     fn evaluate(&mut self, time: f32) -> f32 {
         let mut res = 0.0;
-        for (note, envelope) in self.notes.iter() {
-            res += envelope.amplitude(time)
+        for (note, envelope) in self.notes.iter_mut() {
+            res += envelope.amplitude(&Instant::now())
                 * self
                     .wave_generator
                     .generate_wave(time, note_to_frequency(*note));
@@ -101,16 +102,17 @@ impl<T: Envelope, TOsc: WaveGenerator> Instrument for InstrumentImpl<T, TOsc> {
 
     fn start_note(&mut self, note: i8) {
         if self.notes.contains_key(&note) {
-            panic!("Started to play note that's already played");
+            // Started to play note that's already played – ignore it
+            return;
         }
         // copy given envelope
-        let envelope = self.envelope.create_activated_copy();
+        let envelope = self.envelope.create_activated_copy(&Instant::now());
         self.notes.insert(note, envelope);
     }
 
     fn end_note(&mut self, note: i8) {
         if let Some(env) = self.notes.get_mut(&note) {
-            env.deactivate()
+            env.deactivate(&Instant::now())
         }
     }
 }

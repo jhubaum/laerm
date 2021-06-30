@@ -50,9 +50,7 @@ impl SoundDeviceInterface {
 
         let (tx, rx) = mpsc::channel();
 
-        // Produce a sinusoid of maximum amplitude.
         let mut sample_clock = 0f32;
-        let mut time = 0f32;
         let mut instrument = TInstr::default();
         let mut next_value = move || {
             sample_clock = (sample_clock + 1.0) % sample_rate;
